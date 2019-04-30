@@ -43,18 +43,39 @@ public:
 			throw "Width and height of image must be multiplier of sample block size";
 		}
 
+		unsigned int half_sample_block_size = sample_block_size / 2;
+
 		_width = width;
 		_height = height;
 
-		_Y.reset(new unsigned char[width * height]);
-		_U.reset(new unsigned char[width * height / 4]);
-		_V.reset(new unsigned char[width * height / 4]);
+		_new_width = _width + sample_block_size;
+		_new_height = _height + sample_block_size;
+		ext_Y.reset(new unsigned char[_new_width * _new_height]);
 
+		_chroma_width = _width / 2;
+		_chroma_height = _height / 2;
+		_new_chroma_width = _chroma_width + sample_block_size;
+		_new_chroma_height = _chroma_height + sample_block_size;
+		ext_U.reset(new unsigned char[_new_chroma_width * _new_chroma_height]);
+		ext_V.reset(new unsigned char[_new_chroma_width * _new_chroma_height]);
+
+		// read luma component
 		ifs.seekg(0, ios::beg);
-		ifs.read((char *)_Y.get(), width * height);
-		ifs.read((char *)_U.get(), width * height / 4);
-		ifs.read((char *)_V.get(), width * height / 4);
-
+		for (unsigned int row = 0; row < _height; row++) {
+			unsigned char *dst_ptr = ext_Y.get() + half_sample_block_size * _new_width + row * _new_width + half_sample_block_size;
+			ifs.read((char *)dst_ptr, _width);
+		}
+		// read chroma components
+		for (unsigned int row = 0; row < _chroma_height; row++) {
+			unsigned char *dst_ptr = ext_U.get() + half_sample_block_size * _new_chroma_width
+				+ row * _new_chroma_width + half_sample_block_size;
+			ifs.read((char *)dst_ptr, _chroma_width);
+		}
+		for (unsigned int row = 0; row < _chroma_height; row++) {
+			unsigned char *dst_ptr = ext_V.get() + half_sample_block_size * _new_chroma_width
+				+ row * _new_chroma_width + half_sample_block_size;
+			ifs.read((char *)dst_ptr, _chroma_width);
+		}
 		ifs.close();
 
 		// allocate memory for vertical and horizontal boundaries
@@ -112,41 +133,20 @@ public:
 
 		unsigned int half_sample_block_size = sample_block_size / 2;
 
-		// create auxiliary memory
-		unsigned int new_width = _width + sample_block_size;
-		unsigned int new_height = _height + sample_block_size;
-		unsigned int _chroma_width = _width / 2;
-		unsigned int _chroma_height = _height / 2;
-		unsigned int new_chroma_width = _chroma_width + sample_block_size;
-		unsigned int new_chroma_height = _chroma_height + sample_block_size;
-		unique_ptr<unsigned char> ext_Y;
-		ext_Y.reset(new unsigned char[new_width * new_height]);
-		unique_ptr<unsigned char> ext_U;
-		ext_U.reset(new unsigned char[new_chroma_width * new_chroma_height]);
-		unique_ptr<unsigned char> ext_V;
-		ext_V.reset(new unsigned char[new_chroma_width * new_chroma_height]);
-
-		// copy to auxiliary memory for luma
-		for (unsigned int row = 0; row < _height; row++) {
-			unsigned char *dst_ptr = ext_Y.get() + half_sample_block_size * new_width + row * new_width + half_sample_block_size;
-			unsigned char *src_ptr = _Y.get() + row * _width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _width);
-		}
-
-		unsigned int num_blocks_x = new_width / sample_block_size;
-		unsigned int num_blocks_y = new_height / sample_block_size;
+		unsigned int num_blocks_x = _new_width / sample_block_size;
+		unsigned int num_blocks_y = _new_height / sample_block_size;
 
 		// filter luma
 		for (unsigned int block_ind_x = 0; block_ind_x < num_blocks_x; block_ind_x++) {
 			for (unsigned int block_ind_y = 0; block_ind_y < num_blocks_y; block_ind_y++) {
 				unsigned char *Y_block_ptr = ext_Y.get() +
-					block_ind_y * sample_block_size * new_width +
+					block_ind_y * sample_block_size * _new_width +
 					block_ind_x * sample_block_size;
 				unsigned char *U_block_ptr = ext_U.get() +
-					block_ind_y * half_sample_block_size * new_width / 2 +
+					block_ind_y * half_sample_block_size * _new_width / 2 +
 					block_ind_x * half_sample_block_size;
 				unsigned char *V_block_ptr = ext_V.get() +
-					block_ind_y * half_sample_block_size * new_width / 2 +
+					block_ind_y * half_sample_block_size * _new_width / 2 +
 					block_ind_x * half_sample_block_size;
 
 				// compute boundary stregth for upper vertical boundary
@@ -441,29 +441,8 @@ public:
 			}
 		}
 
-		// copy filtered luma back
-		for (unsigned int row = 0; row < _height; row++) {
-			unsigned char *src_ptr = ext_Y.get() + half_sample_block_size * new_width + row * new_width + half_sample_block_size;
-			unsigned char *dst_ptr = _Y.get() + row * _width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _width);
-		}
-
-		// copy to auxiliary memory for chroma components
-		for (unsigned int row = 0; row < _chroma_height; row++) {
-			unsigned char *dst_ptr = ext_U.get() + half_sample_block_size * new_chroma_width
-				+ row * new_chroma_width + half_sample_block_size;
-			unsigned char *src_ptr = _U.get() + row * _chroma_width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _chroma_width);
-		}
-		for (unsigned int row = 0; row < _chroma_height; row++) {
-			unsigned char *dst_ptr = ext_V.get() + half_sample_block_size * new_chroma_width
-				+ row * new_chroma_width + half_sample_block_size;
-			unsigned char *src_ptr = _V.get() + row * _chroma_width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _chroma_width);
-		}
-
-		unsigned int num_chroma_blocks_x = new_chroma_width / sample_block_size;
-		unsigned int num_chroma_blocks_y = new_chroma_height / sample_block_size;
+		unsigned int num_chroma_blocks_x = _new_chroma_width / sample_block_size;
+		unsigned int num_chroma_blocks_y = _new_chroma_height / sample_block_size;
 		// filter chroma component U
 		for (unsigned int block_ind_x = 0; block_ind_x < num_chroma_blocks_x; block_ind_x++) {
 			for (unsigned int block_ind_y = 0; block_ind_y < num_chroma_blocks_y; block_ind_y++) {
@@ -1019,41 +998,48 @@ public:
 
 			}
 		}
-
-		// copy filtered chroma components back
-		for (unsigned int row = 0; row < _chroma_height; row++) {
-			unsigned char *dst_ptr = ext_U.get() + half_sample_block_size * new_chroma_width
-				+ row * new_chroma_width + half_sample_block_size;
-			unsigned char *src_ptr = _U.get() + row * _chroma_width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _chroma_width);
-		}
-		for (unsigned int row = 0; row < _chroma_height; row++) {
-			unsigned char *dst_ptr = ext_V.get() + half_sample_block_size * new_chroma_width
-				+ row * new_chroma_width + half_sample_block_size;
-			unsigned char *src_ptr = _V.get() + row * _chroma_width;
-			std::memcpy((void *)dst_ptr, (void *)src_ptr, _chroma_width);
-		}
 	}
 
 	void Save(char const *output_file_name) {
-		unsigned char const *y_ptr = _Y.get();
-		unsigned char const *u_ptr = _U.get();
-		unsigned char const *v_ptr = _V.get();
+		unsigned int half_sample_block_size = sample_block_size / 2;
 
 		std::ofstream output_file(output_file_name, ios::out | ios::binary);
-		output_file.write((char const *)y_ptr, _width * _height);
-		output_file.write((char const *)u_ptr, _width * _height / 4);
-		output_file.write((char const *)v_ptr, _width * _height / 4);
+		// copy filtered luma back
+		for (unsigned int row = 0; row < _height; row++) {
+			unsigned char *src_ptr = ext_Y.get() + half_sample_block_size * _new_width +
+				row * _new_width + half_sample_block_size;
+			output_file.write((char const *)src_ptr, _width);
+		}
+
+		// copy filtered chroma components back
+		for (unsigned int row = 0; row < _chroma_height; row++) {
+			unsigned char *src_ptr = ext_U.get() + half_sample_block_size * _new_chroma_width
+				+ row * _new_chroma_width + half_sample_block_size;
+			output_file.write((char const *)src_ptr, _chroma_width);
+		}
+		for (unsigned int row = 0; row < _chroma_height; row++) {
+			unsigned char *src_ptr = ext_V.get() + half_sample_block_size * _new_chroma_width
+				+ row * _new_chroma_width + half_sample_block_size;
+			output_file.write((char const *)src_ptr, _chroma_width);
+		}
 		output_file.close();
 	}
 
 private:
 	const int sample_block_size = 8;
+
 	unsigned int _width;
 	unsigned int _height;
-	unique_ptr<unsigned char> _Y; // width * height - values in range [0..255]
-	unique_ptr<unsigned char> _U; // width * height // 4
-	unique_ptr<unsigned char> _V; // width * height // 4
+	unsigned int _new_width;
+	unsigned int _new_height;
+	unique_ptr<unsigned char> ext_Y; // width * height - values in range [0..255]
+
+	unsigned int _chroma_width;
+	unsigned int _chroma_height;
+	unsigned int _new_chroma_width;
+	unsigned int _new_chroma_height;
+	unique_ptr<unsigned char> ext_U; // width * height // 4
+	unique_ptr<unsigned char> ext_V; // width * height // 4
 
 	// strenght of vertical and horizontal boundaries for luma
 	unsigned int _num_vert_bs;
@@ -1511,7 +1497,7 @@ int main()
 	std::string output_file_name = "image1_filtered_352x288_yv12.yuv";
 	unsigned int width = 352;
 	unsigned int height = 288;
-	unsigned int Qp = 40;
+	unsigned int Qp = 30;
 
 	ReadYuvFrame frame(input_file_name.c_str(), width, height, Qp);
 	frame.DeblockingFilter();
@@ -1519,4 +1505,3 @@ int main()
 
     return 0;
 }
-
