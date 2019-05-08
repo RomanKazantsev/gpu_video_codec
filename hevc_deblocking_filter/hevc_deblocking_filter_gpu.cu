@@ -66,15 +66,16 @@ unsigned char *_gpu_chroma_vert_bs;
 unsigned char *_gpu_chroma_hor_bs;
 
 // CPU buffers
-unique_ptr<unsigned char> ext_Y; // width * height - values in range [0..255]
-unique_ptr<unsigned char> ext_U; // width * height // 4
-unique_ptr<unsigned char> ext_V; // width * height // 4
+unsigned char *Y_pinned_ptr;
+unsigned char *U_pinned_ptr;
+unsigned char *V_pinned_ptr;
 
 // boundary strengths
-unique_ptr<unsigned char> _vert_bs;
-unique_ptr<unsigned char> _hor_bs;
-unique_ptr<unsigned char> _chroma_vert_bs;
-unique_ptr<unsigned char> _chroma_hor_bs;
+unsigned char *_vert_bs;
+unsigned char *_hor_bs;
+unsigned char *_chroma_vert_bs;
+unsigned char *_chroma_hor_bs;
+
 
 __device__ unsigned int GetBeta(unsigned int QP) {
 	if (QP <= 15) return 0;
@@ -1119,29 +1120,40 @@ void Initialize(char const *file_name, unsigned int width, unsigned int height, 
 
 	_new_width = _width + sample_block_size;
 	_new_height = _height + sample_block_size;
-	ext_Y.reset(new unsigned char[_new_width * _new_height]);
 
 	_chroma_width = _width / 2;
 	_chroma_height = _height / 2;
 	_new_chroma_width = _chroma_width + sample_block_size;
 	_new_chroma_height = _chroma_height + sample_block_size;
-	ext_U.reset(new unsigned char[_new_chroma_width * _new_chroma_height]);
-	ext_V.reset(new unsigned char[_new_chroma_width * _new_chroma_height]);
+
+	// allocate pinned memory on host
+	cudaError_t status = cudaMallocHost((void **)&Y_pinned_ptr, _new_width * _new_height);
+	if (status != cudaSuccess) {
+		printf("Error returned from pinned host memory allocation - 1\n");
+	}
+	status = cudaMallocHost((void **)&U_pinned_ptr, _new_chroma_width * _new_chroma_height);
+	if (status != cudaSuccess) {
+		printf("Error returned from pinned host memory allocation - 2\n");
+	}
+	status = cudaMallocHost((void **)&V_pinned_ptr, _new_chroma_width * _new_chroma_height);
+	if (status != cudaSuccess) {
+		printf("Error returned from pinned host memory allocation - 3\n");
+	}
 
 	// read luma component
 	ifs.seekg(0, ios::beg);
 	for (unsigned int row = 0; row < _height; row++) {
-		unsigned char *dst_ptr = ext_Y.get() + half_sample_block_size * _new_width + row * _new_width + half_sample_block_size;
+		unsigned char *dst_ptr = Y_pinned_ptr + half_sample_block_size * _new_width + row * _new_width + half_sample_block_size;
 		ifs.read((char *)dst_ptr, _width);
 	}
 	// read chroma components
 	for (unsigned int row = 0; row < _chroma_height; row++) {
-		unsigned char *dst_ptr = ext_U.get() + half_sample_block_size * _new_chroma_width
+		unsigned char *dst_ptr = U_pinned_ptr + half_sample_block_size * _new_chroma_width
 			+ row * _new_chroma_width + half_sample_block_size;
 		ifs.read((char *)dst_ptr, _chroma_width);
 	}
 	for (unsigned int row = 0; row < _chroma_height; row++) {
-		unsigned char *dst_ptr = ext_V.get() + half_sample_block_size * _new_chroma_width
+		unsigned char *dst_ptr = V_pinned_ptr + half_sample_block_size * _new_chroma_width
 			+ row * _new_chroma_width + half_sample_block_size;
 		ifs.read((char *)dst_ptr, _chroma_width);
 	}
@@ -1150,17 +1162,18 @@ void Initialize(char const *file_name, unsigned int width, unsigned int height, 
 	// allocate memory for vertical and horizontal boundaries
 	_num_vert_bs = (_width / sample_block_size + 1) * _height / sample_block_size;
 	_num_hor_bs = (_height / sample_block_size + 1) * _width / sample_block_size;
-	_vert_bs.reset(new unsigned char[_num_vert_bs]);
-	_hor_bs.reset(new unsigned char[_num_hor_bs]);
+	cudaMallocHost((void **)&_vert_bs, _num_vert_bs);
+	cudaMallocHost((void **)&_hor_bs, _num_hor_bs);
+
 
 	// initialize BS (Boundary Strength) to 2 assuming all blocks are Intra by default
 	for (unsigned int i = 0; i < _num_vert_bs; i++) {
-		_vert_bs.get()[i] = 2;
-		if (i % (_width / sample_block_size + 1) == 0) _vert_bs.get()[i] = 0;
+		_vert_bs[i] = 2;
+		if (i % (_width / sample_block_size + 1) == 0) _vert_bs[i] = 0;
 	}
 	for (unsigned int i = 0; i < _num_hor_bs; i++) {
-		_hor_bs.get()[i] = 2;
-		if (i % (_height / sample_block_size + 1) == 0) _hor_bs.get()[i] = 0;
+		_hor_bs[i] = 2;
+		if (i % (_height / sample_block_size + 1) == 0) _hor_bs[i] = 0;
 	}
 
 	// allocate memory for vertical and horizontal boundaries
@@ -1168,17 +1181,17 @@ void Initialize(char const *file_name, unsigned int width, unsigned int height, 
 	unsigned int _chroma_height = _height / 2;
 	_num_chroma_vert_bs = (_chroma_width / sample_block_size + 1) * _chroma_height / sample_block_size;
 	_num_chroma_hor_bs = (_chroma_height / sample_block_size + 1) * _chroma_width / sample_block_size;
-	_chroma_vert_bs.reset(new unsigned char[_num_chroma_vert_bs]);
-	_chroma_hor_bs.reset(new unsigned char[_num_chroma_hor_bs]);
+	cudaMallocHost((void **)&_chroma_vert_bs, _num_chroma_vert_bs);
+	cudaMallocHost((void **)&_chroma_hor_bs, _num_chroma_hor_bs);
 
 	// initialize boundary strength for chromas
 	for (unsigned int i = 0; i < _num_chroma_vert_bs; i++) {
-		_chroma_vert_bs.get()[i] = 2;
-		if (i % (_chroma_width / sample_block_size + 1) == 0) _chroma_vert_bs.get()[i] = 0;
+		_chroma_vert_bs[i] = 2;
+		if (i % (_chroma_width / sample_block_size + 1) == 0) _chroma_vert_bs[i] = 0;
 	}
 	for (unsigned int i = 0; i < _num_chroma_hor_bs; i++) {
-		_chroma_hor_bs.get()[i] = 2;
-		if (i % (_chroma_height / sample_block_size + 1) == 0) _chroma_hor_bs.get()[i] = 0;
+		_chroma_hor_bs[i] = 2;
+		if (i % (_chroma_height / sample_block_size + 1) == 0) _chroma_hor_bs[i] = 0;
 	}
 }
 
@@ -1193,6 +1206,16 @@ void Release() {
 	cudaFree(_gpu_hor_bs);
 	cudaFree(_gpu_chroma_vert_bs);
 	cudaFree(_gpu_chroma_hor_bs);
+
+	// release Host pinned memory
+	cudaFreeHost(Y_pinned_ptr);
+	cudaFreeHost(U_pinned_ptr);
+	cudaFreeHost(V_pinned_ptr);
+
+	cudaFreeHost(_vert_bs);
+	cudaFreeHost(_hor_bs);
+	cudaFreeHost(_chroma_vert_bs);
+	cudaFreeHost(_chroma_hor_bs);
 }
 
 void Save(char const *output_file_name) {
@@ -1201,19 +1224,19 @@ void Save(char const *output_file_name) {
 	std::ofstream output_file(output_file_name, ios::out | ios::binary);
 	// copy filtered luma back
 	for (unsigned int row = 0; row < _height; row++) {
-		unsigned char *src_ptr = ext_Y.get() + half_sample_block_size * _new_width +
+		unsigned char *src_ptr = Y_pinned_ptr + half_sample_block_size * _new_width +
 			row * _new_width + half_sample_block_size;
 		output_file.write((char const *)src_ptr, _width);
 	}
 
 	// copy filtered chroma components back
 	for (unsigned int row = 0; row < _chroma_height; row++) {
-		unsigned char *src_ptr = ext_U.get() + half_sample_block_size * _new_chroma_width
+		unsigned char *src_ptr = U_pinned_ptr + half_sample_block_size * _new_chroma_width
 			+ row * _new_chroma_width + half_sample_block_size;
 		output_file.write((char const *)src_ptr, _chroma_width);
 	}
 	for (unsigned int row = 0; row < _chroma_height; row++) {
-		unsigned char *src_ptr = ext_V.get() + half_sample_block_size * _new_chroma_width
+		unsigned char *src_ptr = V_pinned_ptr + half_sample_block_size * _new_chroma_width
 			+ row * _new_chroma_width + half_sample_block_size;
 		output_file.write((char const *)src_ptr, _chroma_width);
 	}
@@ -1237,15 +1260,15 @@ void ExecuteGpu(std::string const &input_file_name, std::string const &output_fi
 
 	auto start = std::chrono::system_clock::now();
 	// transfer data from host to device
-	cudaMemcpy(_gpu_Y_ptr, ext_Y.get(), _new_width * _new_height, cudaMemcpyHostToDevice);
-	cudaMemcpy(_gpu_U_ptr, ext_U.get(), _new_chroma_width * _new_chroma_height, cudaMemcpyHostToDevice);
-	cudaMemcpy(_gpu_V_ptr, ext_V.get(), _new_chroma_width * _new_chroma_height, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_Y_ptr, Y_pinned_ptr, _new_width * _new_height, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_U_ptr, U_pinned_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_V_ptr, V_pinned_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyHostToDevice);
 
 	// transfer data from host to device
-	cudaMemcpy(_gpu_vert_bs, _vert_bs.get(), _num_vert_bs, cudaMemcpyHostToDevice);
-	cudaMemcpy(_gpu_hor_bs, _hor_bs.get(), _num_hor_bs, cudaMemcpyHostToDevice);
-	cudaMemcpy(_gpu_chroma_vert_bs, _chroma_vert_bs.get(), _num_chroma_vert_bs, cudaMemcpyHostToDevice);
-	cudaMemcpy(_gpu_chroma_hor_bs, _chroma_hor_bs.get(), _num_chroma_hor_bs, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_vert_bs, _vert_bs, _num_vert_bs, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_hor_bs, _hor_bs, _num_hor_bs, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_chroma_vert_bs, _chroma_vert_bs, _num_chroma_vert_bs, cudaMemcpyHostToDevice);
+	cudaMemcpy(_gpu_chroma_hor_bs, _chroma_hor_bs, _num_chroma_hor_bs, cudaMemcpyHostToDevice);
 	auto end = std::chrono::system_clock::now();
 	std::chrono::duration<double> gpu_buffers_copy_operation_time = end - start;
 
@@ -1277,9 +1300,9 @@ void ExecuteGpu(std::string const &input_file_name, std::string const &output_fi
 
 	start = std::chrono::system_clock::now();
 	// copy kernel result back to host side
-	cudaMemcpy(ext_Y.get(), _gpu_Y_ptr, _new_width * _new_height, cudaMemcpyDeviceToHost);
-	cudaMemcpy(ext_U.get(), _gpu_U_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyDeviceToHost);
-	cudaMemcpy(ext_V.get(), _gpu_V_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyDeviceToHost);
+	cudaMemcpy(Y_pinned_ptr, _gpu_Y_ptr, _new_width * _new_height, cudaMemcpyDeviceToHost);
+	cudaMemcpy(U_pinned_ptr, _gpu_U_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyDeviceToHost);
+	cudaMemcpy(V_pinned_ptr, _gpu_V_ptr, _new_chroma_width * _new_chroma_height, cudaMemcpyDeviceToHost);
 	end = std::chrono::system_clock::now();
 	gpu_buffers_copy_operation_time += end - start;
 
