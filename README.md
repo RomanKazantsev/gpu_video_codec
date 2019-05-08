@@ -1,3 +1,5 @@
+## Device
+
 Device 0: GeForce GTX 1060 with Max-Q Design
 
 Compute Capability: 6.1
@@ -14,19 +16,10 @@ Warp size: 32
 
 Maximum number of threads per block: 1024
 
-Elapsed Time for one-thread CPU implementation: 0.0039335s
+## Performance Results
 
-Elapsed Time for two-thread CPU implementation: 0.0022921s
+| Version  | Single-thread impl. | OpenMP impl. | GPU impl. without copy | GPU impl. with copy | GPU Copy operation |
+|----------|---------------------|--------------|------------------------|---------------------|--------------------|
+| baseline | 0.0039335s          | 0.0019126s   | 0.0001628s             | 0.0013599s          | 0.0011971s         |
 
-Elapsed Time for four-thread CPU implementation: 0.0023878s
-
-Elapsed Time for six-thread CPU implementation: 0.0019126s
-
-Elapsed Time for eight-thread CPU implementation: 0.0020792s
-
-Execution Time without copy on GPU: 0.0001628s
-
-Execution Time with copy on GPU: 0.0013599s
-
-Copy Operation Time with GPU buffers: 0.0011971s
 
