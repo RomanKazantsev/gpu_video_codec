@@ -76,23 +76,8 @@ unsigned char *_hor_bs;
 unsigned char *_chroma_vert_bs;
 unsigned char *_chroma_hor_bs;
 
-
-__device__ unsigned int GetBeta(unsigned int QP) {
-	if (QP <= 15) return 0;
-	if (QP <= 30) return QP - 10;
-	return 2 * QP - 40;
-}
-
-__device__ unsigned int GetTc(unsigned int QP) {
-	if (QP <= 18) return 0;
-	if (QP <= 27) return 1;
-	if (QP <= 30) return 2;
-	if (QP <= 34) return 3;
-	if (QP <= 37) return 4;
-	if (QP <= 40) return 5;
-	if (QP <= 41) return 6;
-	return (9 * QP - 285) / 14;
-}
+__constant__ unsigned int beta_table[52];
+__constant__ unsigned int tc_table[52];
 
 __device__ bool CheckLocalAdaptivity(
 	int p00, int p01, int p02,
@@ -119,18 +104,18 @@ __device__ bool IsStrongFilterToUse(
 	int beta, int tc) {
 	// check condition (2)
 	bool cond2 = false;
-	if (((std::abs(p02 - 2 * p01 + p00) + std::abs(q02 - 2 * q01 + q00)) < beta / 8) &&
-		((std::abs(p32 - 2 * p31 + p30) + std::abs(q32 - 2 * q31 + q30)) < beta / 8)) cond2 = true;
+	if (((abs(p02 - 2 * p01 + p00) + abs(q02 - 2 * q01 + q00)) < beta / 8) &&
+		((abs(p32 - 2 * p31 + p30) + abs(q32 - 2 * q31 + q30)) < beta / 8)) cond2 = true;
 
 	// check condition (3)
 	bool cond3 = false;
-	if (((std::abs(p03 - p00) + std::abs(q00 - q03)) < beta / 8) &&
-		((std::abs(p33 - p30) + std::abs(q30 - q33)) < beta / 8)) cond3 = true;
+	if (((abs(p03 - p00) + abs(q00 - q03)) < beta / 8) &&
+		((abs(p33 - p30) + abs(q30 - q33)) < beta / 8)) cond3 = true;
 
 	// check condition (4)
 	bool cond4 = false;
-	if ((std::abs(p00 - q00) < 5 * tc / 2) &&
-		(std::abs(p30 - q30) < 5 * tc / 2)) cond4 = true;
+	if ((abs(p00 - q00) < 5 * tc / 2) &&
+		(abs(p30 - q30) < 5 * tc / 2)) cond4 = true;
 
 	if (cond2 && cond3 && cond4) return true;
 	return false;
@@ -140,7 +125,7 @@ __device__ bool AreP0P1Modified(
 	int p00, int p10, int p20, int p30,
 	int p03, int p13, int p23, int p33,
 	int beta) {
-	if ((std::abs(p20 - 2 * p10 + p00) + std::abs(p23 - 2 * p13 + p03)) < 3 * beta / 16)
+	if ((abs(p20 - 2 * p10 + p00) + abs(p23 - 2 * p13 + p03)) < 3 * beta / 16)
 		return true;
 	return false;
 }
@@ -218,7 +203,7 @@ __device__ void ApplyStrongFilter(
 	int delta32_q = (2 * _q33 - 5 * _q32 + _q31 + _q30 + _p30 + 4) >> 3;
 
 	// clip deltas for P block
-	int c = 2 * GetTc(QP);
+	int c = 2 * tc_table[QP];
 	delta00_p = Clip1(delta00_p, c); delta10_p = Clip1(delta10_p, c); delta20_p = Clip1(delta20_p, c); delta30_p = Clip1(delta30_p, c);
 	delta01_p = Clip1(delta01_p, c); delta11_p = Clip1(delta11_p, c); delta21_p = Clip1(delta21_p, c); delta31_p = Clip1(delta31_p, c);
 	delta02_p = Clip1(delta02_p, c); delta12_p = Clip1(delta12_p, c); delta22_p = Clip1(delta22_p, c); delta32_p = Clip1(delta32_p, c);
@@ -229,16 +214,16 @@ __device__ void ApplyStrongFilter(
 	delta02_q = Clip1(delta02_q, c); delta12_q = Clip1(delta12_q, c); delta22_q = Clip1(delta22_q, c); delta32_q = Clip1(delta32_q, c);
 
 	// filter pixels
-	int max_v = 1 << 8;
+	int max_v = (1 << 8) - 1;
 	// filter and clip values for P block
 	*p00 = Clip2(_p00 + delta00_p, max_v); *p10 = Clip2(_p10 + delta10_p, max_v); *p20 = Clip2(_p20 + delta20_p, max_v); *p30 = Clip2(_p30 + delta30_p, max_v);
 	*p01 = Clip2(_p01 + delta01_p, max_v); *p11 = Clip2(_p11 + delta11_p, max_v); *p21 = Clip2(_p21 + delta21_p, max_v); *p31 = Clip2(_p31 + delta31_p, max_v);
 	*p02 = Clip2(_p02 + delta02_p, max_v); *p12 = Clip2(_p12 + delta12_p, max_v); *p22 = Clip2(_p22 + delta22_p, max_v); *p32 = Clip2(_p32 + delta32_p, max_v);
 
 	// filter and clip values for Q block
-	*q00 = Clip2(_q00 - delta00_q, max_v); *q10 = Clip2(_q10 + delta10_q, max_v); *q20 = Clip2(_q20 + delta20_q, max_v); *q30 = Clip2(_q30 + delta30_q, max_v);
-	*q01 = Clip2(_q01 - delta01_q, max_v); *q11 = Clip2(_q11 + delta11_q, max_v); *q21 = Clip2(_q21 + delta21_q, max_v); *q31 = Clip2(_q31 + delta31_q, max_v);
-	*q02 = Clip2(_q02 - delta02_q, max_v); *q12 = Clip2(_q12 + delta12_q, max_v); *q22 = Clip2(_q22 + delta22_q, max_v); *q32 = Clip2(_q32 + delta32_q, max_v);
+	*q00 = Clip2(_q00 + delta00_q, max_v); *q10 = Clip2(_q10 + delta10_q, max_v); *q20 = Clip2(_q20 + delta20_q, max_v); *q30 = Clip2(_q30 + delta30_q, max_v);
+	*q01 = Clip2(_q01 + delta01_q, max_v); *q11 = Clip2(_q11 + delta11_q, max_v); *q21 = Clip2(_q21 + delta21_q, max_v); *q31 = Clip2(_q31 + delta31_q, max_v);
+	*q02 = Clip2(_q02 + delta02_q, max_v); *q12 = Clip2(_q12 + delta12_q, max_v); *q22 = Clip2(_q22 + delta22_q, max_v); *q32 = Clip2(_q32 + delta32_q, max_v);
 	return;
 }
 
@@ -255,13 +240,13 @@ __device__ void ApplyNormalFilter(
 
 	unsigned int QP
 ) {
-	int max_v = 1 << 8;
+	int max_v = (1 << 8) - 1;
 	// p03, p02, p01, p00 | q00, q01, q02, q03
 	// p13, p12, p11, p10 | q10, q11, q12, q13
 	// p23, p22, p21, p00 | q20, q21, q22, q23
 	// p33, p32, p31, p30 | q30, q31, q32, q33
-	unsigned int tc = GetTc(QP);
-	unsigned int beta = GetBeta(QP);
+	unsigned int tc = tc_table[QP];
+	unsigned int beta = beta_table[QP];
 	int c = 2 * tc;
 	int c2 = tc / 2;
 
@@ -480,37 +465,48 @@ __device__ void DeblockingFilterChroma(
 		_q20 = *q20, _q21 = *q21,
 		_q30 = *q30, _q31 = *q31;
 
-	int delta0 = (((_p00 - _q00) << 2) + _p01 - _q01 + 4) >> 3;
-	int delta1 = (((_p10 - _q10) << 2) + _p11 - _q11 + 4) >> 3;
-	int delta2 = (((_p20 - _q20) << 2) + _p21 - _q21 + 4) >> 3;
-	int delta3 = (((_p30 - _q30) << 2) + _p31 - _q31 + 4) >> 3;
+	int delta0_p = (((_p00 - _q00) << 2) + _p01 - _q01 + 4) >> 3;
+	int delta1_p = (((_p10 - _q10) << 2) + _p11 - _q11 + 4) >> 3;
+	int delta2_p = (((_p20 - _q20) << 2) + _p21 - _q21 + 4) >> 3;
+	int delta3_p = (((_p30 - _q30) << 2) + _p31 - _q31 + 4) >> 3;
+
+	int delta0_q = (((_q00 - _p00) << 2) + _q01 - _p01 + 4) >> 3;
+	int delta1_q = (((_q10 - _p10) << 2) + _q11 - _p11 + 4) >> 3;
+	int delta2_q = (((_q20 - _p20) << 2) + _q21 - _p21 + 4) >> 3;
+	int delta3_q = (((_q30 - _p30) << 2) + _q31 - _p31 + 4) >> 3;
 
 	// clip1
-	int Delta0 = Clip1(delta0, c);
-	int Delta1 = Clip1(delta1, c);
-	int Delta2 = Clip1(delta2, c);
-	int Delta3 = Clip1(delta3, c);
+	// clip1
+	int Delta0_p = Clip1(delta0_p, c);
+	int Delta1_p = Clip1(delta1_p, c);
+	int Delta2_p = Clip1(delta2_p, c);
+	int Delta3_p = Clip1(delta3_p, c);
 
-	int max_v = 1 << 8;
-	*p00 = Clip2(_p00 + Delta0, max_v);
-	*q00 = Clip2(_q00 - Delta0, max_v);
+	int Delta0_q = Clip1(delta0_q, c);
+	int Delta1_q = Clip1(delta1_q, c);
+	int Delta2_q = Clip1(delta2_q, c);
+	int Delta3_q = Clip1(delta3_q, c);
 
-	*p10 = Clip2(_p10 + Delta1, max_v);
-	*q10 = Clip2(_q10 - Delta1, max_v);
+	int max_v = (1 << 8) - 1;
+	*p00 = Clip2(_p00 + Delta0_p, max_v);
+	*q00 = Clip2(_q00 - Delta0_q, max_v);
 
-	*p20 = Clip2(_p20 + Delta2, max_v);
-	*q20 = Clip2(_q20 - Delta2, max_v);
+	*p10 = Clip2(_p10 + Delta1_p, max_v);
+	*q10 = Clip2(_q10 - Delta1_q, max_v);
 
-	*p30 = Clip2(_p30 + Delta3, max_v);
-	*q30 = Clip2(_q30 - Delta3, max_v);
+	*p20 = Clip2(_p20 + Delta2_p, max_v);
+	*q20 = Clip2(_q20 - Delta2_q, max_v);
+
+	*p30 = Clip2(_p30 + Delta3_p, max_v);
+	*q30 = Clip2(_q30 - Delta3_q, max_v);
 
 	return;
 }
 
 __global__ void DeblockingFilterLumaKernel(unsigned char *gpu_Y_ptr, unsigned char *gpu_vert_bs, unsigned char *gpu_hor_bs,
 	unsigned int sample_block_size, unsigned int _new_width, unsigned int _Qp, unsigned num_blocks_x, unsigned int num_blocks_y) {
-	unsigned int beta = GetBeta(_Qp);
-	unsigned int tc = GetTc(_Qp);
+	unsigned int beta = beta_table[_Qp];
+	unsigned int tc = tc_table[_Qp];
 
 	int block_ind_x = threadIdx.x + blockIdx.x * blockDim.x;
 	int block_ind_y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -815,8 +811,8 @@ __global__ void DeblockingFilterChromaKernel(unsigned char *gpu_U_ptr,
 	unsigned char *gpu_chroma_vert_bs, unsigned char *gpu_chroma_hor_bs,
 	unsigned int sample_block_size, unsigned int _new_chroma_width,
 	unsigned int _Qp, unsigned num_chroma_blocks_x, unsigned int num_chroma_blocks_y) {
-	unsigned int beta = GetBeta(_Qp);
-	unsigned int tc = GetTc(_Qp);
+	unsigned int beta = beta_table[_Qp];
+	unsigned int tc = tc_table[_Qp];
 
 	int block_ind_x = threadIdx.x + blockIdx.x * blockDim.x;
 	int block_ind_y = threadIdx.y + blockIdx.y * blockDim.y;
@@ -1099,6 +1095,20 @@ __global__ void DeblockingFilterChromaKernel(unsigned char *gpu_U_ptr,
 }
 
 void Initialize(char const *file_name, unsigned int width, unsigned int height, unsigned int Qp = 20) {
+	const unsigned int beta_table_host[52] = {
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // QP 0..15
+		6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, // QP 16..31
+		26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, // QP 32 .. 47
+		58, 60, 62, 64 // QP 48..51
+	};
+
+	const unsigned int tc_table_host[52] = {
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // QP 0..15
+		0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, // QP 16..31
+		3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9, 10, 11, 13, // QP 32..47
+		14, 16, 18, 20  // QP 48..51
+	};
+
 	// set quantization parameter
 	_Qp = Qp;
 
@@ -1193,6 +1203,10 @@ void Initialize(char const *file_name, unsigned int width, unsigned int height, 
 		_chroma_hor_bs[i] = 2;
 		if (i % (_chroma_height / sample_block_size + 1) == 0) _chroma_hor_bs[i] = 0;
 	}
+
+	// initialize constant arrays
+	cudaMemcpyToSymbol(beta_table, &beta_table_host, sizeof(beta_table_host), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(tc_table, &tc_table_host, sizeof(tc_table_host), 0, cudaMemcpyHostToDevice);
 }
 
 void Release() {
@@ -1461,7 +1475,6 @@ public:
 		unsigned int num_blocks_y = _new_height / sample_block_size;
 
 		// filter luma
-#pragma omp parallel for
 		for (int block_ind_x = 0; block_ind_x < num_blocks_x; block_ind_x++) {
 			for (int block_ind_y = 0; block_ind_y < num_blocks_y; block_ind_y++) {
 				unsigned char *Y_block_ptr = ext_Y.get() +
@@ -1769,7 +1782,6 @@ public:
 		unsigned int num_chroma_blocks_x = _new_chroma_width / sample_block_size;
 		unsigned int num_chroma_blocks_y = _new_chroma_height / sample_block_size;
 		// filter chroma component U
-#pragma omp parallel for
 		for (int block_ind_x = 0; block_ind_x < num_chroma_blocks_x; block_ind_x++) {
 			for (int block_ind_y = 0; block_ind_y < num_chroma_blocks_y; block_ind_y++) {
 				// compute boundary stregth for upper vertical boundary
@@ -2048,7 +2060,6 @@ public:
 		}
 
 		// filter chroma component V
-#pragma omp parallel for
 		for (int block_ind_x = 0; block_ind_x < num_chroma_blocks_x; block_ind_x++) {
 			for (int block_ind_y = 0; block_ind_y < num_chroma_blocks_y; block_ind_y++) {
 				// compute boundary stregth for upper vertical boundary

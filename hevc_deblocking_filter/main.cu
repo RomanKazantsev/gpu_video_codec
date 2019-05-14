@@ -35,9 +35,9 @@ using namespace std;
 
 void ExecuteCpu(std::string const &input_file_name, std::string const &output_file_name,
 	unsigned int width, unsigned int height, unsigned int Qp) {
-	ReadYuvFrame frame(input_file_name.c_str(), width, height, Qp);
 
 	// one-thread CPU mode run
+	ReadYuvFrame frame(input_file_name.c_str(), width, height, Qp);
 	auto start = std::chrono::system_clock::now();
 	frame.DeblockingFilter();
 	auto end = std::chrono::system_clock::now();
@@ -46,34 +46,38 @@ void ExecuteCpu(std::string const &input_file_name, std::string const &output_fi
 	std::cout << "Elapsed Time for one-thread CPU implementation: " << elapsed_seconds.count() << "s" << std::endl;
 
 	// two-thread CPU mode run
+	ReadYuvFrame frame2(input_file_name.c_str(), width, height, Qp);
 	start = std::chrono::system_clock::now();
-	frame.DeblockingFilter(2);
+	frame2.DeblockingFilter(2);
 	end = std::chrono::system_clock::now();
-	frame.Save(output_file_name.c_str());
+	frame2.Save(output_file_name.c_str());
 	elapsed_seconds = end - start;
 	std::cout << "Elapsed Time for two-thread CPU implementation: " << elapsed_seconds.count() << "s" << std::endl;
 
 	// four-thread CPU mode run
+	ReadYuvFrame frame4(input_file_name.c_str(), width, height, Qp);
 	start = std::chrono::system_clock::now();
-	frame.DeblockingFilter(4);
+	frame4.DeblockingFilter(4);
 	end = std::chrono::system_clock::now();
-	frame.Save(output_file_name.c_str());
+	frame4.Save(output_file_name.c_str());
 	elapsed_seconds = end - start;
 	std::cout << "Elapsed Time for four-thread CPU implementation: " << elapsed_seconds.count() << "s" << std::endl;
 
 	// six-thread CPU mode run
+	ReadYuvFrame frame6(input_file_name.c_str(), width, height, Qp);
 	start = std::chrono::system_clock::now();
-	frame.DeblockingFilter(6);
+	frame6.DeblockingFilter(6);
 	end = std::chrono::system_clock::now();
-	frame.Save(output_file_name.c_str());
+	frame6.Save(output_file_name.c_str());
 	elapsed_seconds = end - start;
 	std::cout << "Elapsed Time for six-thread CPU implementation: " << elapsed_seconds.count() << "s" << std::endl;
 
 	// eight-thread CPU mode run
+	ReadYuvFrame frame8(input_file_name.c_str(), width, height, Qp);
 	start = std::chrono::system_clock::now();
-	frame.DeblockingFilter(8);
+	frame8.DeblockingFilter(8);
 	end = std::chrono::system_clock::now();
-	frame.Save(output_file_name.c_str());
+	frame8.Save(output_file_name.c_str());
 	elapsed_seconds = end - start;
 	std::cout << "Elapsed Time for eight-thread CPU implementation: " << elapsed_seconds.count() << "s" << std::endl;
 }
@@ -111,12 +115,20 @@ int main()
 	//unsigned int Qp = 30;
 
 	//image2_768x576.yuv
-	std::string input_file_name = "image2_768x576.yuv";
-	std::string output_file_name = "image2_filtered_768x576.yuv";
-	std::string output_file_name_gpu = "image2_filtered_768x576_gpu.yuv";
-	unsigned int width = 768;
-	unsigned int height = 576;
-	unsigned int Qp = 30;
+	//std::string input_file_name = "image2_768x576.yuv";
+	//std::string output_file_name = "image2_filtered_768x576.yuv";
+	//std::string output_file_name_gpu = "image2_filtered_768x576_gpu.yuv";
+	//unsigned int width = 768;
+	//unsigned int height = 576;
+	//unsigned int Qp = 30;
+
+	// mother-daughter_352x288_yv12.yuv
+	std::string input_file_name = "mother-daughter_352x288_yv12.yuv";
+	std::string output_file_name = "mother-daughter_352x288_yv12_filtered.yuv";
+	std::string output_file_name_gpu = "mother-daughter_352x288_yv12_filtered_gpu.yuv";
+	unsigned int width = 352;
+	unsigned int height = 288;
+	unsigned int Qp = 35;
 
 	GetGpuDeviceInfo();
 

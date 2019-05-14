@@ -1034,6 +1034,20 @@ public:
 	}
 
 private:
+	const unsigned int beta_table[52] = {
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // QP 0..15
+		6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, // QP 16..31
+		26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 54, 56, // QP 32 .. 47
+		58, 60, 62, 64 // QP 48..51
+	};
+
+	const unsigned int tc_table[52] = {
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // QP 0..15
+		0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3, // QP 16..31
+		3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 8, 9, 10, 11, 13, // QP 32..47
+		14, 16, 18, 20  // QP 48..51
+	};
+
 	const int sample_block_size = 8;
 
 	unsigned int _width;
@@ -1064,20 +1078,13 @@ private:
 	unsigned int _Qp; // quantization parameter
 
 	unsigned int GetBeta(unsigned int QP) const {
-		if (QP <= 15) return 0;
-		if (QP <= 30) return QP - 10;
-		return 2 * QP - 40;
+		if (QP > 51) return beta_table[51];
+		return beta_table[QP];
 	}
 
 	unsigned int GetTc(unsigned int QP) const {
-		if (QP <= 18) return 0;
-		if (QP <= 27) return 1;
-		if (QP <= 30) return 2;
-		if (QP <= 34) return 3;
-		if (QP <= 37) return 4;
-		if (QP <= 40) return 5;
-		if (QP <= 41) return 6;
-		return (9 * QP - 285) / 14;
+		if (QP > 51) return tc_table[51];
+		return tc_table[QP];
 	}
 
 	bool CheckLocalAdaptivity(
@@ -1208,16 +1215,16 @@ private:
 		delta02_q = Clip1(delta02_q, c); delta12_q = Clip1(delta12_q, c); delta22_q = Clip1(delta22_q, c); delta32_q = Clip1(delta32_q, c);
 
 		// filter pixels
-		int max_v = 1 << 8;
+		int max_v = (1 << 8) - 1;
 		// filter and clip values for P block
 		*p00 = Clip2(_p00 + delta00_p, max_v); *p10 = Clip2(_p10 + delta10_p, max_v); *p20 = Clip2(_p20 + delta20_p, max_v); *p30 = Clip2(_p30 + delta30_p, max_v);
 		*p01 = Clip2(_p01 + delta01_p, max_v); *p11 = Clip2(_p11 + delta11_p, max_v); *p21 = Clip2(_p21 + delta21_p, max_v); *p31 = Clip2(_p31 + delta31_p, max_v);
 		*p02 = Clip2(_p02 + delta02_p, max_v); *p12 = Clip2(_p12 + delta12_p, max_v); *p22 = Clip2(_p22 + delta22_p, max_v); *p32 = Clip2(_p32 + delta32_p, max_v);
 
 		// filter and clip values for Q block
-		*q00 = Clip2(_q00 - delta00_q, max_v); *q10 = Clip2(_q10 + delta10_q, max_v); *q20 = Clip2(_q20 + delta20_q, max_v); *q30 = Clip2(_q30 + delta30_q, max_v);
-		*q01 = Clip2(_q01 - delta01_q, max_v); *q11 = Clip2(_q11 + delta11_q, max_v); *q21 = Clip2(_q21 + delta21_q, max_v); *q31 = Clip2(_q31 + delta31_q, max_v);
-		*q02 = Clip2(_q02 - delta02_q, max_v); *q12 = Clip2(_q12 + delta12_q, max_v); *q22 = Clip2(_q22 + delta22_q, max_v); *q32 = Clip2(_q32 + delta32_q, max_v);
+		*q00 = Clip2(_q00 + delta00_q, max_v); *q10 = Clip2(_q10 + delta10_q, max_v); *q20 = Clip2(_q20 + delta20_q, max_v); *q30 = Clip2(_q30 + delta30_q, max_v);
+		*q01 = Clip2(_q01 + delta01_q, max_v); *q11 = Clip2(_q11 + delta11_q, max_v); *q21 = Clip2(_q21 + delta21_q, max_v); *q31 = Clip2(_q31 + delta31_q, max_v);
+		*q02 = Clip2(_q02 + delta02_q, max_v); *q12 = Clip2(_q12 + delta12_q, max_v); *q22 = Clip2(_q22 + delta22_q, max_v); *q32 = Clip2(_q32 + delta32_q, max_v);
 		return;
 	}
 
@@ -1234,7 +1241,7 @@ private:
 
 		unsigned int QP
 	) {
-		int max_v = 1 << 8;
+		int max_v = (1 << 8) - 1;
 		// p03, p02, p01, p00 | q00, q01, q02, q03
 		// p13, p12, p11, p10 | q10, q11, q12, q13
 		// p23, p22, p21, p00 | q20, q21, q22, q23
@@ -1459,31 +1466,40 @@ private:
 			_q20 = *q20, _q21 = *q21,
 			_q30 = *q30, _q31 = *q31;
 
-		int delta0 = (((_p00 - _q00) << 2) + _p01 - _q01 + 4) >> 3;
-		int delta1 = (((_p10 - _q10) << 2) + _p11 - _q11 + 4) >> 3;
-		int delta2 = (((_p20 - _q20) << 2) + _p21 - _q21 + 4) >> 3;
-		int delta3 = (((_p30 - _q30) << 2) + _p31 - _q31 + 4) >> 3;
+		int delta0_p = (((_p00 - _q00) << 2) + _p01 - _q01 + 4) >> 3;
+		int delta1_p = (((_p10 - _q10) << 2) + _p11 - _q11 + 4) >> 3;
+		int delta2_p = (((_p20 - _q20) << 2) + _p21 - _q21 + 4) >> 3;
+		int delta3_p = (((_p30 - _q30) << 2) + _p31 - _q31 + 4) >> 3;
+
+		int delta0_q = (((_q00 - _p00) << 2) + _q01 - _p01 + 4) >> 3;
+		int delta1_q = (((_q10 - _p10) << 2) + _q11 - _p11 + 4) >> 3;
+		int delta2_q = (((_q20 - _p20) << 2) + _q21 - _p21 + 4) >> 3;
+		int delta3_q = (((_q30 - _p30) << 2) + _q31 - _p31 + 4) >> 3;
 
 		// clip1
-		int Delta0 = Clip1(delta0, c);
-		int Delta1 = Clip1(delta1, c);
-		int Delta2 = Clip1(delta2, c);
-		int Delta3 = Clip1(delta3, c);
+		int Delta0_p = Clip1(delta0_p, c);
+		int Delta1_p = Clip1(delta1_p, c);
+		int Delta2_p = Clip1(delta2_p, c);
+		int Delta3_p = Clip1(delta3_p, c);
 
-		int max_v = 1 << 8;
-		*p00 = Clip2(_p00 + Delta0, max_v);
-		*q00 = Clip2(_q00 - Delta0, max_v);
+		int Delta0_q = Clip1(delta0_q, c);
+		int Delta1_q = Clip1(delta1_q, c);
+		int Delta2_q = Clip1(delta2_q, c);
+		int Delta3_q = Clip1(delta3_q, c);
 
-		*p10 = Clip2(_p10 + Delta1, max_v);
-		*q10 = Clip2(_q10 - Delta1, max_v);
+		int max_v = (1 << 8) - 1;
+		*p00 = Clip2(_p00 + Delta0_p, max_v);
+		*q00 = Clip2(_q00 - Delta0_q, max_v);
 
-		*p20 = Clip2(_p20 + Delta2, max_v);
-		*q20 = Clip2(_q20 - Delta2, max_v);
+		*p10 = Clip2(_p10 + Delta1_p, max_v);
+		*q10 = Clip2(_q10 - Delta1_q, max_v);
 
-		*p30 = Clip2(_p30 + Delta3, max_v);
-		*q30 = Clip2(_q30 - Delta3, max_v);
+		*p20 = Clip2(_p20 + Delta2_p, max_v);
+		*q20 = Clip2(_q20 - Delta2_q, max_v);
+
+		*p30 = Clip2(_p30 + Delta3_p, max_v);
+		*q30 = Clip2(_q30 - Delta3_q, max_v);
 
 		return;
 	}
-
 };
