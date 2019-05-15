@@ -133,7 +133,7 @@ int main()
 	GetGpuDeviceInfo();
 
 	ExecuteCpu(input_file_name, output_file_name, width, height, Qp);
-	ExecuteGpu(input_file_name, output_file_name_gpu, width, height, Qp, 32, 32);
+	ExecuteGpu(input_file_name, output_file_name_gpu, width, height, Qp, 16, 16);
 
 	return 0;
 }
