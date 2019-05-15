@@ -138,8 +138,8 @@ public:
 
 		unsigned int half_sample_block_size = sample_block_size / 2;
 
-		unsigned int num_blocks_x = _new_width / sample_block_size;
-		unsigned int num_blocks_y = _new_height / sample_block_size;
+		int num_blocks_x = _new_width / sample_block_size;
+		int num_blocks_y = _new_height / sample_block_size;
 
 		// filter luma
 #pragma omp parallel for
@@ -447,8 +447,8 @@ public:
 			}
 		}
 
-		unsigned int num_chroma_blocks_x = _new_chroma_width / sample_block_size;
-		unsigned int num_chroma_blocks_y = _new_chroma_height / sample_block_size;
+		int num_chroma_blocks_x = _new_chroma_width / sample_block_size;
+		int num_chroma_blocks_y = _new_chroma_height / sample_block_size;
 		// filter chroma component U
 #pragma omp parallel for
 		for (int block_ind_x = 0; block_ind_x < num_chroma_blocks_x; block_ind_x++) {
@@ -584,14 +584,12 @@ public:
 						0 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(half_sample_block_size - 1);
-					unsigned char *p01 = p00 - 1; unsigned char *p02 = p01 - 1; unsigned char *p03 = p02 - 1;
 
 					unsigned char *p10 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						1 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(half_sample_block_size - 1);
-					unsigned char *p11 = p10 - 1; unsigned char *p12 = p11 - 1; unsigned char *p13 = p12 - 1;
 
 					unsigned char *p20 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
@@ -623,13 +621,11 @@ public:
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 2) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q21 = q20 + 1; unsigned char *q22 = q21 + 1; unsigned char *q23 = q22 + 1;
 
 					unsigned char *q30 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 3) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q31 = q30 + 1; unsigned char *q32 = q31 + 1; unsigned char *q33 = q32 + 1;
 
 					DeblockingFilterChroma(
 						p33, p23,
@@ -665,14 +661,12 @@ public:
 						0 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(sample_block_size - 1);
-					unsigned char *p01 = p00 - 1; unsigned char *p02 = p01 - 1; unsigned char *p03 = p02 - 1;
 
 					unsigned char *p10 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						1 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(sample_block_size - 1);
-					unsigned char *p11 = p10 - 1; unsigned char *p12 = p11 - 1; unsigned char *p13 = p12 - 1;
 
 					unsigned char *p20 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
@@ -704,13 +698,11 @@ public:
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 2) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q21 = q20 + 1; unsigned char *q22 = q21 + 1; unsigned char *q23 = q22 + 1;
 
 					unsigned char *q30 = ext_U.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 3) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q31 = q30 + 1; unsigned char *q32 = q31 + 1; unsigned char *q33 = q32 + 1;
 
 					DeblockingFilterChroma(
 						p33, p23,
@@ -863,14 +855,12 @@ public:
 						0 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(half_sample_block_size - 1);
-					unsigned char *p01 = p00 - 1; unsigned char *p02 = p01 - 1; unsigned char *p03 = p02 - 1;
 
 					unsigned char *p10 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						1 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(half_sample_block_size - 1);
-					unsigned char *p11 = p10 - 1; unsigned char *p12 = p11 - 1; unsigned char *p13 = p12 - 1;
 
 					unsigned char *p20 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
@@ -902,13 +892,11 @@ public:
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 2) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q21 = q20 + 1; unsigned char *q22 = q21 + 1; unsigned char *q23 = q22 + 1;
 
 					unsigned char *q30 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 3) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q31 = q30 + 1; unsigned char *q32 = q31 + 1; unsigned char *q33 = q32 + 1;
 
 					DeblockingFilterChroma(
 						p33, p23,
@@ -944,14 +932,12 @@ public:
 						0 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(sample_block_size - 1);
-					unsigned char *p01 = p00 - 1; unsigned char *p02 = p01 - 1; unsigned char *p03 = p02 - 1;
 
 					unsigned char *p10 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						1 * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x +
 						(sample_block_size - 1);
-					unsigned char *p11 = p10 - 1; unsigned char *p12 = p11 - 1; unsigned char *p13 = p12 - 1;
 
 					unsigned char *p20 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
@@ -983,13 +969,11 @@ public:
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 2) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q21 = q20 + 1; unsigned char *q22 = q21 + 1; unsigned char *q23 = q22 + 1;
 
 					unsigned char *q30 = ext_V.get() +
 						num_chroma_blocks_x * sample_block_size * sample_block_size * block_ind_y +
 						(sample_block_size / 2 + 3) * num_chroma_blocks_x * sample_block_size +
 						sample_block_size * block_ind_x;
-					unsigned char *q31 = q30 + 1; unsigned char *q32 = q31 + 1; unsigned char *q33 = q32 + 1;
 
 					DeblockingFilterChroma(
 						p33, p23,
@@ -1077,12 +1061,12 @@ private:
 
 	unsigned int _Qp; // quantization parameter
 
-	unsigned int GetBeta(unsigned int QP) const {
+	int GetBeta(unsigned int QP) const {
 		if (QP > 51) return beta_table[51];
 		return beta_table[QP];
 	}
 
-	unsigned int GetTc(unsigned int QP) const {
+	int GetTc(unsigned int QP) const {
 		if (QP > 51) return tc_table[51];
 		return tc_table[QP];
 	}
@@ -1229,15 +1213,15 @@ private:
 	}
 
 	void ApplyNormalFilter(
-		unsigned char *p00, unsigned char *p01, unsigned char *p02, unsigned char *p03,
-		unsigned char *p10, unsigned char *p11, unsigned char *p12, unsigned char *p13,
-		unsigned char *p20, unsigned char *p21, unsigned char *p22, unsigned char *p23,
-		unsigned char *p30, unsigned char *p31, unsigned char *p32, unsigned char *p33,
+		unsigned char *p00, unsigned char *p01, unsigned char *p02,
+		unsigned char *p10, unsigned char *p11, unsigned char *p12,
+		unsigned char *p20, unsigned char *p21, unsigned char *p22,
+		unsigned char *p30, unsigned char *p31, unsigned char *p32,
 
-		unsigned char *q00, unsigned char *q01, unsigned char *q02, unsigned char *q03,
-		unsigned char *q10, unsigned char *q11, unsigned char *q12, unsigned char *q13,
-		unsigned char *q20, unsigned char *q21, unsigned char *q22, unsigned char *q23,
-		unsigned char *q30, unsigned char *q31, unsigned char *q32, unsigned char *q33,
+		unsigned char *q00, unsigned char *q01, unsigned char *q02,
+		unsigned char *q10, unsigned char *q11, unsigned char *q12,
+		unsigned char *q20, unsigned char *q21, unsigned char *q22,
+		unsigned char *q30, unsigned char *q31, unsigned char *q32,
 
 		unsigned int QP
 	) {
@@ -1246,15 +1230,15 @@ private:
 		// p13, p12, p11, p10 | q10, q11, q12, q13
 		// p23, p22, p21, p00 | q20, q21, q22, q23
 		// p33, p32, p31, p30 | q30, q31, q32, q33
-		unsigned int tc = GetTc(QP);
-		unsigned int beta = GetBeta(QP);
+		int tc = GetTc(QP);
+		int beta = GetBeta(QP);
 		int c = 2 * tc;
 		int c2 = tc / 2;
 
-		int _p00 = *p00, _p01 = *p01, _p02 = *p02, _p03 = *p03, _q00 = *q00, _q01 = *q01, _q02 = *q02, _q03 = *q03;
-		int _p10 = *p10, _p11 = *p11, _p12 = *p12, _p13 = *p13, _q10 = *q10, _q11 = *q11, _q12 = *q12, _q13 = *q13;
-		int _p20 = *p20, _p21 = *p21, _p22 = *p22, _p23 = *p23, _q20 = *q20, _q21 = *q21, _q22 = *q22, _q23 = *q23;
-		int _p30 = *p30, _p31 = *p31, _p32 = *p32, _p33 = *p33, _q30 = *q30, _q31 = *q31, _q32 = *q32, _q33 = *q33;
+		int _p00 = *p00, _p01 = *p01, _p02 = *p02, _q00 = *q00, _q01 = *q01, _q02 = *q02;
+		int _p10 = *p10, _p11 = *p11, _p12 = *p12, _q10 = *q10, _q11 = *q11, _q12 = *q12;
+		int _p20 = *p20, _p21 = *p21, _p22 = *p22, _q20 = *q20, _q21 = *q21, _q22 = *q22;
+		int _p30 = *p30, _p31 = *p31, _p32 = *p32, _q30 = *q30, _q31 = *q31, _q32 = *q32;
 
 		bool cond5 = false;
 		// | p2,0 − 2p1,0 + p0,0| + |p2,3 − 2p1,3 + p0,3| < 3/16β
@@ -1432,14 +1416,14 @@ private:
 			// p23, p22, p21, p00 | q20, q21, q22, q23
 			// p33, p32, p31, p30 | q30, q31, q32, q33
 			ApplyNormalFilter(
-				p00, p01, p02, p03,
-				p10, p11, p12, p13,
-				p20, p21, p22, p23,
-				p30, p31, p32, p33,
-				q00, q01, q02, q03,
-				q10, q11, q12, q13,
-				q20, q21, q22, q23,
-				q30, q31, q32, q33,
+				p00, p01, p02,
+				p10, p11, p12,
+				p20, p21, p22,
+				p30, p31, p32,
+				q00, q01, q02,
+				q10, q11, q12,
+				q20, q21, q22,
+				q30, q31, q32,
 				_Qp);
 		}
 	}
