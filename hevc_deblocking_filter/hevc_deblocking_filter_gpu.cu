@@ -123,22 +123,12 @@ __device__ bool IsStrongFilterToUse(
 	int q00, int q01, int q02, int q03,
 	int q30, int q31, int q32, int q33,
 	int beta, int tc) {
-	// check condition (2)
-	bool cond2 = false;
 	if (((abs(p02 - 2 * p01 + p00) + abs(q02 - 2 * q01 + q00)) < beta / 8) &&
-		((abs(p32 - 2 * p31 + p30) + abs(q32 - 2 * q31 + q30)) < beta / 8)) cond2 = true;
-
-	// check condition (3)
-	bool cond3 = false;
-	if (((abs(p03 - p00) + abs(q00 - q03)) < beta / 8) &&
-		((abs(p33 - p30) + abs(q30 - q33)) < beta / 8)) cond3 = true;
-
-	// check condition (4)
-	bool cond4 = false;
-	if ((abs(p00 - q00) < 5 * tc / 2) &&
-		(abs(p30 - q30) < 5 * tc / 2)) cond4 = true;
-
-	if (cond2 && cond3 && cond4) return true;
+		((abs(p32 - 2 * p31 + p30) + abs(q32 - 2 * q31 + q30)) < beta / 8) &&
+		((abs(p03 - p00) + abs(q00 - q03)) < beta / 8) &&
+		((abs(p33 - p30) + abs(q30 - q33)) < beta / 8) &&
+		(abs(p00 - q00) < 5 * tc / 2) &&
+		(abs(p30 - q30) < 5 * tc / 2)) return true;
 	return false;
 }
 
@@ -174,78 +164,96 @@ __device__ void ApplyStrongFilter(
 
 	unsigned int QP
 ) {
+	int max_v = (1 << 8) - 1;
 
 	// p03, p02, p01, p00 | q00, q01, q02, q03
 	// p13, p12, p11, p10 | q10, q11, q12, q13
 	// p23, p22, p21, p00 | q20, q21, q22, q23
 	// p33, p32, p31, p30 | q30, q31, q32, q33
-
-	int _p00 = *p00, _p01 = *p01, _p02 = *p02, _p03 = *p03, _q00 = *q00, _q01 = *q01, _q02 = *q02, _q03 = *q03;
-	int _p10 = *p10, _p11 = *p11, _p12 = *p12, _p13 = *p13, _q10 = *q10, _q11 = *q11, _q12 = *q12, _q13 = *q13;
-	int _p20 = *p20, _p21 = *p21, _p22 = *p22, _p23 = *p23, _q20 = *q20, _q21 = *q21, _q22 = *q22, _q23 = *q23;
-	int _p30 = *p30, _p31 = *p31, _p32 = *p32, _p33 = *p33, _q30 = *q30, _q31 = *q31, _q32 = *q32, _q33 = *q33;
-
+	int _p0, _p1, _p2, _p3, _q0, _q1, _q2, _q3;
+	_p0 = *p00; _p1 = *p01; _p2 = *p02; _p3 = *p03; _q0 = *q00; _q1 = *q01; _q2 = *q02; _q3 = *q03;
 	// compute deltas for P block
-	// δ0s = (p2 + 2p1 − 6p0 + 2q0 + q1 + 4) >> 3
-	int delta00_p = (_p02 + 2 * _p01 - 6 * _p00 + 2 * _q00 + _q01 + 4) >> 3;
-	int delta10_p = (_p12 + 2 * _p11 - 6 * _p10 + 2 * _q10 + _q11 + 4) >> 3;
-	int delta20_p = (_p22 + 2 * _p21 - 6 * _p20 + 2 * _q20 + _q21 + 4) >> 3;
-	int delta30_p = (_p32 + 2 * _p31 - 6 * _p30 + 2 * _q30 + _q31 + 4) >> 3;
-
-	// δ1s = (p2 − 3p1 + p0 + q0 + 2) >> 2
-	int delta01_p = (_p02 - 3 * _p01 + _p00 + _q00 + 2) >> 2;
-	int delta11_p = (_p12 - 3 * _p11 + _p10 + _q10 + 2) >> 2;
-	int delta21_p = (_p22 - 3 * _p21 + _p20 + _q20 + 2) >> 2;
-	int delta31_p = (_p32 - 3 * _p31 + _p30 + _q30 + 2) >> 2;
-
-	// δ2s = (2p3 − 5p2 + p1 + p0 + q0 + 4) >> 3
-	int delta02_p = (2 * _p03 - 5 * _p02 + _p01 + _p00 + _q00 + 4) >> 3;
-	int delta12_p = (2 * _p13 - 5 * _p12 + _p11 + _p10 + _q10 + 4) >> 3;
-	int delta22_p = (2 * _p23 - 5 * _p22 + _p21 + _p20 + _q20 + 4) >> 3;
-	int delta32_p = (2 * _p33 - 5 * _p32 + _p31 + _p30 + _q30 + 4) >> 3;
+	int delta0_p = (_p2 + 2 * _p1 - 6 * _p0 + 2 * _q0 + _q1 + 4) >> 3; // δ0s = (p2 + 2p1 − 6p0 + 2q0 + q1 + 4) >> 3
+	int delta1_p = (_p2 - 3 * _p1 + _p0 + _q0 + 2) >> 2; // δ1s = (p2 − 3p1 + p0 + q0 + 2) >> 2
+	int delta2_p = (2 * _p3 - 5 * _p2 + _p1 + _p0 + _q0 + 4) >> 3; // δ2s = (2p3 − 5p2 + p1 + p0 + q0 + 4) >> 3
 
 	// compute deltas for Q block
-	// δ0s = (q2 + 2q1 − 6q0 + 2p0 + p1 + 4) >> 3
-	int delta00_q = (_q02 + 2 * _q01 - 6 * _q00 + 2 * _p00 + _p01 + 4) >> 3;
-	int delta10_q = (_q12 + 2 * _q11 - 6 * _q10 + 2 * _p10 + _p11 + 4) >> 3;
-	int delta20_q = (_q22 + 2 * _q21 - 6 * _q20 + 2 * _p20 + _p21 + 4) >> 3;
-	int delta30_q = (_q32 + 2 * _q31 - 6 * _q30 + 2 * _p30 + _p31 + 4) >> 3;
-
-	// δ1s = (q2 − 3q1 + q0 + p0 + 2) >> 2
-	int delta01_q = (_q02 - 3 * _q01 + _q00 + _p00 + 2) >> 2;
-	int delta11_q = (_q12 - 3 * _q11 + _q10 + _p10 + 2) >> 2;
-	int delta21_q = (_q22 - 3 * _q21 + _q20 + _p20 + 2) >> 2;
-	int delta31_q = (_q32 - 3 * _q31 + _q30 + _p30 + 2) >> 2;
-
-	// δ2s = (2q3 − 5q2 + q1 + q0 + p0 + 4) >> 3
-	int delta02_q = (2 * _q03 - 5 * _q02 + _q01 + _q00 + _p00 + 4) >> 3;
-	int delta12_q = (2 * _q13 - 5 * _q12 + _q11 + _q10 + _p10 + 4) >> 3;
-	int delta22_q = (2 * _q23 - 5 * _q22 + _q21 + _q20 + _p20 + 4) >> 3;
-	int delta32_q = (2 * _q33 - 5 * _q32 + _q31 + _q30 + _p30 + 4) >> 3;
+	int delta0_q = (_q2 + 2 * _q1 - 6 * _q0 + 2 * _p0 + _p1 + 4) >> 3; // δ0s = (q2 + 2q1 − 6q0 + 2p0 + p1 + 4) >> 3
+	int delta1_q = (_q2 - 3 * _q1 + _q0 + _p0 + 2) >> 2; // δ1s = (q2 − 3q1 + q0 + p0 + 2) >> 2
+	int delta2_q = (2 * _q3 - 5 * _q2 + _q1 + _q0 + _p0 + 4) >> 3; // δ2s = (2q3 − 5q2 + q1 + q0 + p0 + 4) >> 3
 
 	// clip deltas for P block
 	int c = 2 * GetTc(QP);
-	delta00_p = Clip1(delta00_p, c); delta10_p = Clip1(delta10_p, c); delta20_p = Clip1(delta20_p, c); delta30_p = Clip1(delta30_p, c);
-	delta01_p = Clip1(delta01_p, c); delta11_p = Clip1(delta11_p, c); delta21_p = Clip1(delta21_p, c); delta31_p = Clip1(delta31_p, c);
-	delta02_p = Clip1(delta02_p, c); delta12_p = Clip1(delta12_p, c); delta22_p = Clip1(delta22_p, c); delta32_p = Clip1(delta32_p, c);
-
+	delta0_p = Clip1(delta0_p, c); delta1_p = Clip1(delta1_p, c); delta2_p = Clip1(delta2_p, c);
 	// clip deltas for Q block
-	delta00_q = Clip1(delta00_q, c); delta10_q = Clip1(delta10_q, c); delta20_q = Clip1(delta20_q, c); delta30_q = Clip1(delta30_q, c);
-	delta01_q = Clip1(delta01_q, c); delta11_q = Clip1(delta11_q, c); delta21_q = Clip1(delta21_q, c); delta31_q = Clip1(delta31_q, c);
-	delta02_q = Clip1(delta02_q, c); delta12_q = Clip1(delta12_q, c); delta22_q = Clip1(delta22_q, c); delta32_q = Clip1(delta32_q, c);
+	delta0_q = Clip1(delta0_q, c); delta1_q = Clip1(delta1_q, c); delta2_q = Clip1(delta2_q, c);
 
-	// filter pixels
-	int max_v = (1 << 8) - 1;
 	// filter and clip values for P block
-	*p00 = Clip2(_p00 + delta00_p, max_v); *p10 = Clip2(_p10 + delta10_p, max_v); *p20 = Clip2(_p20 + delta20_p, max_v); *p30 = Clip2(_p30 + delta30_p, max_v);
-	*p01 = Clip2(_p01 + delta01_p, max_v); *p11 = Clip2(_p11 + delta11_p, max_v); *p21 = Clip2(_p21 + delta21_p, max_v); *p31 = Clip2(_p31 + delta31_p, max_v);
-	*p02 = Clip2(_p02 + delta02_p, max_v); *p12 = Clip2(_p12 + delta12_p, max_v); *p22 = Clip2(_p22 + delta22_p, max_v); *p32 = Clip2(_p32 + delta32_p, max_v);
-
+	*p00 = Clip2(_p0 + delta0_p, max_v); *p01 = Clip2(_p1 + delta1_p, max_v); *p02 = Clip2(_p2 + delta2_p, max_v);
 	// filter and clip values for Q block
-	*q00 = Clip2(_q00 + delta00_q, max_v); *q10 = Clip2(_q10 + delta10_q, max_v); *q20 = Clip2(_q20 + delta20_q, max_v); *q30 = Clip2(_q30 + delta30_q, max_v);
-	*q01 = Clip2(_q01 + delta01_q, max_v); *q11 = Clip2(_q11 + delta11_q, max_v); *q21 = Clip2(_q21 + delta21_q, max_v); *q31 = Clip2(_q31 + delta31_q, max_v);
-	*q02 = Clip2(_q02 + delta02_q, max_v); *q12 = Clip2(_q12 + delta12_q, max_v); *q22 = Clip2(_q22 + delta22_q, max_v); *q32 = Clip2(_q32 + delta32_q, max_v);
-	return;
+	*q00 = Clip2(_q0 + delta0_q, max_v); *q01 = Clip2(_q1 + delta1_q, max_v); *q02 = Clip2(_q2 + delta2_q, max_v);
+
+	_p0 = *p10; _p1 = *p11; _p2 = *p12; _p3 = *p13; _q0 = *q10; _q1 = *q11; _q2 = *q12; _q3 = *q13;
+	// compute deltas for P block
+	delta0_p = (_p2 + 2 * _p1 - 6 * _p0 + 2 * _q0 + _q1 + 4) >> 3; // δ0s = (p2 + 2p1 − 6p0 + 2q0 + q1 + 4) >> 3
+	delta1_p = (_p2 - 3 * _p1 + _p0 + _q0 + 2) >> 2; // δ1s = (p2 − 3p1 + p0 + q0 + 2) >> 2
+	delta2_p = (2 * _p3 - 5 * _p2 + _p1 + _p0 + _q0 + 4) >> 3; // δ2s = (2p3 − 5p2 + p1 + p0 + q0 + 4) >> 3
+
+	// compute deltas for Q block
+	delta0_q = (_q2 + 2 * _q1 - 6 * _q0 + 2 * _p0 + _p1 + 4) >> 3; // δ0s = (q2 + 2q1 − 6q0 + 2p0 + p1 + 4) >> 3
+	delta1_q = (_q2 - 3 * _q1 + _q0 + _p0 + 2) >> 2; // δ1s = (q2 − 3q1 + q0 + p0 + 2) >> 2
+	delta2_q = (2 * _q3 - 5 * _q2 + _q1 + _q0 + _p0 + 4) >> 3; // δ2s = (2q3 − 5q2 + q1 + q0 + p0 + 4) >> 3
+
+	// clip deltas for P block
+	delta0_p = Clip1(delta0_p, c); delta1_p = Clip1(delta1_p, c); delta2_p = Clip1(delta2_p, c);
+	// clip deltas for Q block
+	delta0_q = Clip1(delta0_q, c); delta1_q = Clip1(delta1_q, c); delta2_q = Clip1(delta2_q, c);
+
+	// filter and clip values for P block
+	*p10 = Clip2(_p0 + delta0_p, max_v); *p11 = Clip2(_p1 + delta1_p, max_v); *p12 = Clip2(_p2 + delta2_p, max_v);
+	// filter and clip values for Q block
+	*q10 = Clip2(_q0 + delta0_q, max_v); *q11 = Clip2(_q1 + delta1_q, max_v); *q12 = Clip2(_q2 + delta2_q, max_v);
+
+	_p0 = *p20; _p1 = *p21; _p2 = *p22; _p3 = *p23; _q0 = *q20; _q1 = *q21; _q2 = *q22; _q3 = *q23;
+	// compute deltas for P block
+	delta0_p = (_p2 + 2 * _p1 - 6 * _p0 + 2 * _q0 + _q1 + 4) >> 3; // δ0s = (p2 + 2p1 − 6p0 + 2q0 + q1 + 4) >> 3
+	delta1_p = (_p2 - 3 * _p1 + _p0 + _q0 + 2) >> 2; // δ1s = (p2 − 3p1 + p0 + q0 + 2) >> 2
+	delta2_p = (2 * _p3 - 5 * _p2 + _p1 + _p0 + _q0 + 4) >> 3; // δ2s = (2p3 − 5p2 + p1 + p0 + q0 + 4) >> 3
+
+															   // compute deltas for Q block
+	delta0_q = (_q2 + 2 * _q1 - 6 * _q0 + 2 * _p0 + _p1 + 4) >> 3; // δ0s = (q2 + 2q1 − 6q0 + 2p0 + p1 + 4) >> 3
+	delta1_q = (_q2 - 3 * _q1 + _q0 + _p0 + 2) >> 2; // δ1s = (q2 − 3q1 + q0 + p0 + 2) >> 2
+	delta2_q = (2 * _q3 - 5 * _q2 + _q1 + _q0 + _p0 + 4) >> 3; // δ2s = (2q3 − 5q2 + q1 + q0 + p0 + 4) >> 3
+
+															   // clip deltas for P block
+	delta0_p = Clip1(delta0_p, c); delta1_p = Clip1(delta1_p, c); delta2_p = Clip1(delta2_p, c);
+	// clip deltas for Q block
+	delta0_q = Clip1(delta0_q, c); delta1_q = Clip1(delta1_q, c); delta2_q = Clip1(delta2_q, c);
+	// filter and clip values for P block
+	*p20 = Clip2(_p0 + delta0_p, max_v); *p21 = Clip2(_p1 + delta1_p, max_v); *p22 = Clip2(_p2 + delta2_p, max_v);
+	// filter and clip values for Q block
+	*q20 = Clip2(_q0 + delta0_q, max_v); *q21 = Clip2(_q1 + delta1_q, max_v); *q22 = Clip2(_q2 + delta2_q, max_v);
+
+	_p0 = *p30; _p1 = *p31; _p2 = *p32; _p3 = *p33; _q0 = *q30; _q1 = *q31; _q2 = *q32; _q3 = *q33;
+	// compute deltas for P block
+	delta0_p = (_p2 + 2 * _p1 - 6 * _p0 + 2 * _q0 + _q1 + 4) >> 3; // δ0s = (p2 + 2p1 − 6p0 + 2q0 + q1 + 4) >> 3
+	delta1_p = (_p2 - 3 * _p1 + _p0 + _q0 + 2) >> 2; // δ1s = (p2 − 3p1 + p0 + q0 + 2) >> 2
+	delta2_p = (2 * _p3 - 5 * _p2 + _p1 + _p0 + _q0 + 4) >> 3; // δ2s = (2p3 − 5p2 + p1 + p0 + q0 + 4) >> 3
+
+	// compute deltas for Q block
+	delta0_q = (_q2 + 2 * _q1 - 6 * _q0 + 2 * _p0 + _p1 + 4) >> 3; // δ0s = (q2 + 2q1 − 6q0 + 2p0 + p1 + 4) >> 3
+	delta1_q = (_q2 - 3 * _q1 + _q0 + _p0 + 2) >> 2; // δ1s = (q2 − 3q1 + q0 + p0 + 2) >> 2
+	delta2_q = (2 * _q3 - 5 * _q2 + _q1 + _q0 + _p0 + 4) >> 3; // δ2s = (2q3 − 5q2 + q1 + q0 + p0 + 4) >> 3
+
+	// clip deltas for P block
+	delta0_p = Clip1(delta0_p, c); delta1_p = Clip1(delta1_p, c); delta2_p = Clip1(delta2_p, c);
+	// clip deltas for Q block
+	delta0_q = Clip1(delta0_q, c); delta1_q = Clip1(delta1_q, c); delta2_q = Clip1(delta2_q, c);
+
+	// filter and clip values for P block
+	*p30 = Clip2(_p0 + delta0_p, max_v); *p31 = Clip2(_p1 + delta1_p, max_v); *p32 = Clip2(_p2 + delta2_p, max_v);
+	// filter and clip values for Q block
+	*q30 = Clip2(_q0 + delta0_q, max_v); *q31 = Clip2(_q1 + delta1_q, max_v); *q32 = Clip2(_q2 + delta2_q, max_v);
 }
 
 __device__ void ApplyNormalFilter(
@@ -1220,7 +1228,8 @@ void Save(char const *output_file_name) {
 }
 
 void ExecuteGpu(std::string const &input_file_name, std::string const &output_file_name,
-	unsigned int width, unsigned int height, unsigned int Qp, unsigned dimx, unsigned int dimy) {
+	unsigned int width, unsigned int height, unsigned int Qp,
+	unsigned dimx1, unsigned int dimy1, unsigned dimx2, unsigned int dimy2) {
 	Initialize(input_file_name.c_str(), width, height, Qp);
 
 	// allocate GPU global memory for Y, U, V
@@ -1255,14 +1264,14 @@ void ExecuteGpu(std::string const &input_file_name, std::string const &output_fi
 	unsigned int num_chroma_blocks_y = _new_chroma_height / sample_block_size;
 
 	start = std::chrono::system_clock::now();
-	dim3 block(dimx, dimy);
+	dim3 block(dimx1, dimy1);
 	dim3 grid((num_blocks_x + block.x - 1) / block.x, (num_blocks_y + block.y - 1) / block.y);
 	DeblockingFilterLumaKernel << <grid, block >> >(_gpu_Y_ptr, _gpu_vert_bs, _gpu_hor_bs, sample_block_size,
 		_new_width, Qp, num_blocks_x, num_blocks_y);
 	cudaError_t err = cudaGetLastError();
 	if (err != cudaSuccess)
 		printf("Error - 1: %s\n", cudaGetErrorString(err));
-	dim3 chroma_block(dimx, dimy);
+	dim3 chroma_block(dimx2, dimy2);
 	dim3 chroma_grid((num_chroma_blocks_x + chroma_block.x - 1) / chroma_block.x,
 		(num_chroma_blocks_y + chroma_block.y - 1) / chroma_block.y);
 	DeblockingFilterChromaKernel << <chroma_grid, chroma_block >> >(_gpu_U_ptr,

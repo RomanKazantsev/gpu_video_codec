@@ -85,7 +85,9 @@ void ExecuteCpu(std::string const &input_file_name, std::string const &output_fi
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 void ExecuteGpu(std::string const &input_file_name, std::string const &output_file_name,
-	unsigned int width, unsigned int height, unsigned int Qp, unsigned dimx = 16, unsigned int dimy = 16);
+	unsigned int width, unsigned int height, unsigned int Qp,
+	unsigned dimx1 = 16, unsigned int dimy1 = 16, unsigned dimx2 = 16, unsigned int dimy2 = 16
+	);
 
 void GetGpuDeviceInfo() {
 	int iDev = 0;
@@ -133,7 +135,7 @@ int main()
 	GetGpuDeviceInfo();
 
 	ExecuteCpu(input_file_name, output_file_name, width, height, Qp);
-	ExecuteGpu(input_file_name, output_file_name_gpu, width, height, Qp, 16, 16);
+	ExecuteGpu(input_file_name, output_file_name_gpu, width, height, Qp, 20, 20, 20, 20);
 
 	return 0;
 }
